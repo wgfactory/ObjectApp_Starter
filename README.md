@@ -1,4 +1,4 @@
-# ObjectApp_Starter
+# ObjectApp_MLKit_Starter
 
 ## 이 프로젝트는 MLKit을 활용한 Object Detection App 완성을 위한 Starter 코드 입니다. 
 - ✔️ Starter Code는 부분적으로 빈칸으로 구성되어 있습니다. 
