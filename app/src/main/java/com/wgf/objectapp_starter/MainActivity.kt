@@ -26,8 +26,27 @@ import java.io.IOException
 import java.text.SimpleDateFormat
 
 class MainActivity : AppCompatActivity() {
+
     //TODO - 전역 변수 셋팅
     private val TAG = MainActivity::class.java.simpleName
+
+    // 카메라, 갤러리 권한을 얻기 위한 Permission 전역 변수 선언
+    val CAMERA_PERMISSION = arrayOf(Manifest.permission.CAMERA)
+    val STORAGE_PERMISSION = arrayOf(
+        Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE
+    )
+
+    // 카메라, 갤러리 권한 요청을 위한 Permission 요청 코드
+    val REQ_PERMISSION_CAMERA = 98
+    val REQ_PERMISSION_STORAGE = 99
+
+    // 카메라, 갤러리 앱 열기를 위한 Intent 요청 코드
+    val ODT_REQ_CAMERA_IMAGE = 101
+    val ODT_REQ_GALLERY_IMAGE = 102
+
+    // 카메라 원본이미지 Uri(촬영된 사진의 원본)를 저장할 변수
+    var mPhotoURI: Uri? = null
+    var mBitmap: Bitmap? = null
 
     /**
      * (1) onCreate() :
@@ -39,6 +58,12 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         //TODO - 코드 추가 : checkPermission() 호출
+        Log.d(TAG, ">> onCreate()")
+
+        // 권한 체크하기 함수 호출!
+        if (checkPermission(STORAGE_PERMISSION, REQ_PERMISSION_STORAGE)) {
+            setViews()
+        }
     }
 
     /**
@@ -49,7 +74,17 @@ class MainActivity : AppCompatActivity() {
      */
     fun checkPermission(permissions: Array<out String>, flag: Int) : Boolean {
         //TODO - 로그 및 코드 추가
+        Log.d(TAG, ">> checkPermission()")
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            for (permission in permissions) {
+                if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+                    ActivityCompat.requestPermissions(this, permissions, flag)
+                    return false
+                }
+            }
+        }
+        return true
     }
 
     /**
@@ -57,14 +92,21 @@ class MainActivity : AppCompatActivity() {
      *
      *      Permission(권한) 처리 후 결과를 확인하는 함수
      */
+    /**
+     * (3) onRequestPermissionsResult() :
+     *
+     *      Permission(권한) 처리 후 결과를 확인하는 함수
+     */
     override fun onRequestPermissionsResult(
-            requestCode: Int, permissions: Array<out String>, grantResults: IntArray
+        requestCode: Int, permissions: Array<out String>, grantResults: IntArray
     ) {
         when (requestCode) {
             REQ_PERMISSION_STORAGE -> {
                 for (grant in grantResults) {
                     if (grant != PackageManager.PERMISSION_GRANTED) {
-                        //TODO - 코드 추가 : 저장소 권한 획득 실패 시 showToast()
+                        // 코드 추가!! - 저장소 권한 획득 실패 시 showToast()
+                        showToast("저장소 권한을 승인해야지만 앱을 사용할 수 있습니다.")
+
                         finish()
                         return
                     }
@@ -75,7 +117,8 @@ class MainActivity : AppCompatActivity() {
             REQ_PERMISSION_CAMERA -> {
                 for (grant in grantResults) {
                     if (grant != PackageManager.PERMISSION_GRANTED) {
-                        //TODO - 코드 추가 : 카메라 권한 획득 실패 시 showToast()
+                        // 코드 추가!! - 카메라 권한 획득 실패 시 showToast()
+                        showToast("카메라 권한을 승인해야지만 카메라를 사용할 수 있습니다.")
                         return
                     }
                 }
@@ -93,6 +136,14 @@ class MainActivity : AppCompatActivity() {
         Log.d(TAG, ">> setViews()")
 
         //TODO - 코드 추가 : 버튼 클릭 시 함수 호출
+        //카메라 버튼 클릭
+        buttonCamera.setOnClickListener {
+            openCamera()
+        }
+        //갤러리 버튼 클릭
+        buttonGallery.setOnClickListener {
+            openGallery()
+        }
     }
 
     /**
@@ -107,11 +158,13 @@ class MainActivity : AppCompatActivity() {
 
             // 시스템 카메라 앱 호출 Intent
             //TODO - 코드 추가 : Intent 코드 추가
+            val takePictureIntent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
 
             createImageUri(newFileName(), "image/jpg")?.let { uri ->
                 mPhotoURI = uri
                 takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, mPhotoURI)
                 //TODO - 코드 추가 : Intent 실행하는 코드 추가
+                startActivityForResult(takePictureIntent, ODT_REQ_CAMERA_IMAGE)
             }
         }
     }
@@ -126,8 +179,10 @@ class MainActivity : AppCompatActivity() {
 
         // 시스템 갤러리 앱 호출 Intent
         //TODO - 코드 추가 : Intent 코드 추가
+        val intent = Intent(Intent.ACTION_PICK)
         intent.type = MediaStore.Images.Media.CONTENT_TYPE
         //TODO - 코드 추가 : Intent 실행하는 코드 추가
+        startActivityForResult(intent, ODT_REQ_GALLERY_IMAGE)
     }
 
     /**
@@ -137,22 +192,29 @@ class MainActivity : AppCompatActivity() {
      */
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        //TODO - 코드 추가 : RequestCode가 RESULT_OK 인지 체크!
+        // 코드 추가!! - resultCode가 RESULT_OK인지 체크
+        if(resultCode == Activity.RESULT_OK) {
             when(requestCode){
-                //TODO - 코드 추가 : 요청 코드가 Camera 일 때
+                // 코드 추가!! - 카메라 Request Code 체크하기
+                ODT_REQ_CAMERA_IMAGE -> {
                     if (mPhotoURI != null) {
                         val bitmap = loadBitmapFromMediaStoreBy(mPhotoURI!!)
                         mBitmap = bitmap
                         val image = getCapturedImage(mPhotoURI!!)
-                        //TODO - 코드 추가 : runObjectDetection 함수 호출
+
+                        // 코드 추가!! - runObjectDetection 함수 호출!
+
 
                         mPhotoURI = null // 사용 후 null 처리
                     }
                 }
-                //TODO - 코드 추가 : 요청 코드가 Gallery 일 때
+
+                // 코드 추가!! - 갤러리 request Code 체크하기
+                ODT_REQ_GALLERY_IMAGE -> {
                     val uri = data?.data
                     val image = getCapturedImage(uri!!)
-                    //TODO - 코드 추가 : runObjectDetection 함수 호출
+                    // 코드 추가!! - runObjectDetection 함수 호출!
+
                 }
             }
         }
@@ -173,6 +235,7 @@ class MainActivity : AppCompatActivity() {
         return contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
     }
 
+
     /**
      * (9) newFileName() :
      *
@@ -187,6 +250,7 @@ class MainActivity : AppCompatActivity() {
         return "$filename.jpg"
     }
 
+
     /**
      * (10) loadBitmapFromMedia() :
      *      Camera 촬영으로 얻은 원본 이미지 가져오기
@@ -197,7 +261,7 @@ class MainActivity : AppCompatActivity() {
         try {
             image = if (Build.VERSION.SDK_INT > 27) { // Api 버전별 이미지 처리
                 val source: ImageDecoder.Source =
-                        ImageDecoder.createSource(this.contentResolver, photoUri)
+                    ImageDecoder.createSource(this.contentResolver, photoUri)
                 ImageDecoder.decodeBitmap(source)
             } else {
                 MediaStore.Images.Media.getBitmap(this.contentResolver, photoUri)
@@ -208,6 +272,7 @@ class MainActivity : AppCompatActivity() {
         return image
     }
 
+
     /**
      * (11) getCapturedImage():
      *     Decodes and center crops the captured image from camera.
@@ -215,6 +280,9 @@ class MainActivity : AppCompatActivity() {
      */
     private fun getCapturedImage(imgUri: Uri): Bitmap {
         Log.d(TAG, ">> getCapturedImage()")
+        //FirebaseVision Package
+/*        val srcImage = FirebaseVisionImage
+            .fromFilePath(baseContext, imgUri!!).bitmap*/
 
         var srcImage: Bitmap? = null
         try {
@@ -225,20 +293,22 @@ class MainActivity : AppCompatActivity() {
 
         // crop image to match imageView's aspect ratio
         val scaleFactor = Math.min(
-                srcImage!!.width / imagePreview.width.toFloat(),
-                srcImage!!.height / imagePreview.height.toFloat()
+            srcImage!!.width / imagePreview.width.toFloat(),
+            srcImage!!.height / imagePreview.height.toFloat()
         )
 
         val deltaWidth = (srcImage.width - imagePreview.width * scaleFactor).toInt()
         val deltaHeight = (srcImage.height - imagePreview.height * scaleFactor).toInt()
 
         val scaledImage = Bitmap.createBitmap(
-                srcImage, deltaWidth / 2, deltaHeight / 2,
-                srcImage.width - deltaWidth, srcImage.height - deltaHeight
+            srcImage, deltaWidth / 2, deltaHeight / 2,
+            srcImage.width - deltaWidth, srcImage.height - deltaHeight
         )
         srcImage.recycle()
         return scaledImage
+
     }
+
 
     /**
      * MLKit Object Detection Function
@@ -246,38 +316,7 @@ class MainActivity : AppCompatActivity() {
      *      MLKit Object Detection Function
      *      Object Detection을 수행하는 함수
      */
-    private fun runObjectDetection(bitmap: Bitmap) {
-        Log.d(TAG, ">> runObjectDetection()")
 
-        // Step 1: create MLKit's VisionImage object
-        //TODO - 코드 추가 : image 코드 추가
-
-        // Step 2: acquire detector object
-        //TODO - 코드 추가 : option 코드 추가
-
-        //TODO - 코드 추가 : detector 코드 추가
-
-        // Step 3: feed given image to detector and setup callback
-        //TODO - 코드 추가 : processor 코드 추가
-                .addOnSuccessListener {
-                    // Task completed successfully
-                    // Post-detection processing : draw result
-
-                    if(it.size == 0) {
-                        //TODO - 코드 추가 : 사물을 못 찾았을 때 Toast 표시!
-                    }
-                    val drawingView = DrawingView(applicationContext, it)
-                    //TODO - 코드 추가 : drawingView에 박스 그려주기 코드
-
-                    runOnUiThread {
-                        //TODO - 코드 추가 : imageView에 표시해주기
-                    }
-                }
-                .addOnFailureListener {
-                    // Task failed with an exception
-                    showToast("Oops, something went wrong!")
-                }
-    }
 
     /**
      * (13) showToast() :
@@ -288,7 +327,9 @@ class MainActivity : AppCompatActivity() {
         Log.d(TAG, ">> showToast()")
 
         //TODO - 코드 추가 : Toast 코드 - applicationContext 사용하기!
+        val toast = Toast.makeText(applicationContext, message, duration)
         toast.setGravity(Gravity.CENTER, 0, 0)
         //TODO - 코드 추가 : toast show 코드 추가
+        toast.show()
     }
 }
